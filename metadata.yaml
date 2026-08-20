@@ -7,7 +7,7 @@ help:
   【基础指令】
   - /jrrp ：查询今日人品(/人品 等关键词也可以触发)
   - /jrys ：查询今日运势(/今日运势 /运势 等关键词也可以触发)
-repo: https://github.com/MoonCC/astrbot_plugin_dailycheck
+repo: https://github.com/MoonCC233/astrbot_plugin_dailycheck
 tags:
   - 娱乐
   - 人品
