@@ -1,0 +1,20 @@
+{
+    "send_image": {
+        "type": "bool",
+        "title": "发送运势卡片图片",
+        "description": "开启后，今日运势以图片卡片形式发送；关闭则发送纯文本运势信息。",
+        "default": true
+    },
+    "use_avatar": {
+        "type": "bool",
+        "title": "使用用户头像",
+        "description": "在运势卡片上绘制用户头像（需平台支持获取头像，且依赖 requests 库）。",
+        "default": false
+    },
+    "auto_trigger": {
+        "type": "bool",
+        "title": "关键词自动触发今日运势",
+        "description": "在私聊中发送包含“今日运势”或“运势”的消息时自动触发运势卡片。",
+        "default": false
+    }
+}
