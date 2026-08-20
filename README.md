@@ -1,6 +1,6 @@
 <div align="center">
 
-![logo](https://proxy.mooncc.cn/https://raw.githubusercontent.com/MoonCC233/astrbot_plugin_dailycheck/main/logo.png)
+![logo](https://github.com/MoonCC233/astrbot_plugin_dailycheck/blob/main/logo.png)
 
 # astrbot_plugin_dailycheck（每日抽签）
 

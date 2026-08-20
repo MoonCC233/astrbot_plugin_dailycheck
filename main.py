@@ -1,17 +1,15 @@
 import os
 import random
+import asyncio
+import aiofiles
+import aiofiles.os
 
-from astrbot.api import AstrBotConfig
+from astrbot.api import AstrBotConfig, logger
 from astrbot.api.star import Context, Star, register
 from astrbot.api.event import AstrMessageEvent, filter
 
-from .painter import combine, download_image
-
-PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-JRYSCACHE = os.path.join(PLUGIN_DIR, "jrys_cache.png")
-JRYSDATA = os.path.join(PLUGIN_DIR, "jrys.json")
-FONT_PATH = os.path.join(PLUGIN_DIR, "font", "MiSans-Medium.ttf")
-BG_FOLDER = os.path.join(PLUGIN_DIR, "backgroundFolder")
+from .resources import ResourceManager
+from .painter import FortunePainter
 
 
 @register(
@@ -21,13 +19,22 @@ BG_FOLDER = os.path.join(PLUGIN_DIR, "backgroundFolder")
     "1.0.0",
 )
 class DailyCheckPlugin(Star):
+    """每日抽签插件：整合今日人品(jrrp)与今日运势(jrys)"""
+
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
+        self.resources = ResourceManager(self.config)
+        self.painter = FortunePainter(self.config)
 
+    async def initialize(self):
+        """插件加载后初始化资源（如启用背景图预缓存）。"""
+        await self.resources.initialize()
+
+    # ---------------- 今日人品 (jrrp) ----------------
     @filter.command("jrrp")
     async def jrrp(self, event: AstrMessageEvent):
-        '''获取今日人品值。用法：/jrrp'''
+        """获取今日人品值。用法：/jrrp"""
         user_id = event.get_sender_id()
         seed = user_id + str(__import__("datetime").date.today())
         random.seed(seed)
@@ -35,90 +42,168 @@ class DailyCheckPlugin(Star):
         random.seed()
         yield event.plain_result(f"你今天的人品值为：{jrrp_value}")
 
+    # ---------------- 今日运势 (jrys) ----------------
     @filter.command("jrys", alias=["今日运势", "运势"])
-    async def jrys(self, event: AstrMessageEvent):
-        '''获取今日运势。用法：/jrys'''
-        user_id = event.get_sender_id()
-
-        # 读取运势数据
-        if not os.path.exists(JRYSDATA):
-            yield event.plain_result("运势数据文件缺失，请联系管理员。")
-            return
-        with open(JRYSDATA, "r", encoding="utf-8") as f:
-            data = __import__("json").load(f)
-
-        seed = user_id + str(__import__("datetime").date.today())
-        random.seed(seed)
-        fl = random.randint(0, 100)
-        choice = random.choice(data)
-        random.seed()
-
-        # 配置项
-        use_avatar = self.config.get("use_avatar", False)
-        send_image = self.config.get("send_image", True)
-
-        avatar_path = None
-        if use_avatar:
-            sender = event.get_sender()
-            avatar_url = getattr(sender, "user_displayname", None)
-            # 头像 URL 由平台事件提供，尝试获取
-            try:
-                avatar_url = event.get_avatars()[0] if event.get_avatars() else None
-            except Exception:  # noqa: BLE001
-                avatar_url = None
-            if avatar_url:
-                avatar_path = os.path.join(PLUGIN_DIR, f"avatar_{user_id}.png")
-                download_image(avatar_url, avatar_path)
-
-        img_path = combine(
-            jrys_data=choice,
-            user_id=user_id,
-            fl=fl,
-            avatar_path=avatar_path,
-            bg_folder=BG_FOLDER,
-            font_path=FONT_PATH,
-        )
-
-        if send_image:
-            yield event.image_result(img_path)
-        else:
-            msg = (
-                f"用户 {user_id} 今日运气: {fl}\n"
-                f"{'★' * int(choice.get('star', 3))}{'☆' * (5 - int(choice.get('star', 3)))}\n"
-                f"{choice.get('title', '')}\n"
-                f"{choice.get('text', '')}\n"
-                f"幸运方位: {choice.get('lucky', '')}\n"
-                f"幸运颜色: {choice.get('lucky_color', '')}\n"
-                f"幸运数字: {choice.get('lucky_num', '')}\n"
-                f"幸运禁忌: {choice.get('avoid', '')}"
-            )
-            yield event.plain_result(msg)
-
-        # 缓存图片路径，供 /jrys_last 使用
-        self._last_img = img_path
+    async def jrys_command_handler(self, event: AstrMessageEvent):
+        """处理 /jrys, /今日运势, /运势 等指令"""
+        setattr(event, "_jrys_processed", True)
+        async for result in self.jrys(event):
+            yield result
 
     @filter.command("jrys_last")
-    async def jrys_last(self, event: AstrMessageEvent):
-        '''获取上次生成的今日运势卡片。用法：/jrys_last'''
-        last = getattr(self, "_last_img", None)
-        if last and os.path.exists(last):
-            yield event.image_result(last)
-        else:
-            yield event.plain_result("暂无历史运势卡片，请先发送 /jrys 生成。")
+    async def jrys_last_command_handler(self, event: AstrMessageEvent):
+        """处理 /jrys_last 指令，发送上一次生成的原图"""
+        user_id = event.get_sender_id()
+        self.jrys_data = await self.resources._load_jrys_data()
+        user_last_images = self.jrys_data.get("_user_last_images", {})
+        if user_id not in user_last_images:
+            yield event.plain_result("你还没有生成过今日运势哦，先发送 jrys 生成一张吧！")
+            return
+
+        last_info = user_last_images[user_id]
+        path = last_info.get("path")
+
+        if not path or not os.path.exists(path):
+            yield event.plain_result("找不到上一次生成的原图了，可能已被清理，请重新生成～")
+            return
+
+        yield event.image_result(path)
 
     @filter.event_message_type(filter.EventMessageType.ALL)
-    async def on_message(self, event: AstrMessageEvent):
-        '''关键词触发今日运势（仅私聊）。'''
+    async def jrys_keyword_handler(self, event: AstrMessageEvent, *args, **kwargs):
+        """私聊关键词触发今日运势（受 auto_trigger 控制）"""
+        if getattr(event, "_jrys_processed", False):
+            return
+
         if not self.config.get("auto_trigger", False):
             return
         if event.get_type() != filter.EventMessageType.PRIVATE_MESSAGE:
             return
-        msg = event.message_str
-        if msg and ("今日运势" in msg or "运势" in msg):
-            async for r in self.jrys(event):
-                yield r
 
+        message_str = event.message_str.strip()
+        keywords = {"jrys", "今日运势", "运势"}
+        if message_str in keywords:
+            async for result in self.jrys(event):
+                yield result
 
-def generate_card_image(user_id: str, jrys_data: dict, fl: int) -> str:
-    """供外部直接调用的卡片生成入口。"""
-    return combine(jrys_data, user_id, fl, bg_folder=BG_FOLDER, font_path=FONT_PATH)
+    async def jrys(self, event: AstrMessageEvent):
+        """核心运势生成逻辑（整合自 jrys）"""
+        user_id = event.get_sender_id()
+        user_name = event.get_sender_name()
+        use_avatar = self.config.get("use_avatar", False)
+
+        self.jrys_data = await self.resources._load_jrys_data()
+
+        background_path = None
+        background_should_cleanup = False
+
+        try:
+            tasks = [self.resources.get_background_image()]
+            if use_avatar:
+                tasks.insert(0, self.resources.get_avatar_img(user_id))
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            if use_avatar:
+                avatar_path, background_result = results
+            else:
+                background_result = results[0]
+                avatar_path = None
+
+            if isinstance(background_result, Exception):
+                logger.error(f"获取背景图片时出错: {background_result}")
+                yield event.plain_result("获取背景图片失败，请稍后再试～")
+                return
+            if background_result is None:
+                yield event.plain_result("获取背景图片失败，请稍后再试～")
+                return
+
+            background_path, background_should_cleanup = background_result
+
+            if isinstance(avatar_path, Exception):
+                logger.error(f"获取头像时出错: {avatar_path}")
+                avatar_path = None
+
+        except Exception as e:
+            logger.error(f"获取头像或背景图片时出错: {e}")
+            yield event.plain_result("获取头像或背景图片失败，请稍后再试～")
+            return
+
+        temp_file_path = None
+
+        try:
+            temp_file_path = await asyncio.to_thread(
+                self.painter.generate_image_sync,
+                user_id,
+                avatar_path,
+                background_path,
+                self.jrys_data,
+            )
+
+            if temp_file_path is None:
+                yield event.plain_result("生成图片失败，请稍后再试～")
+                return
+
+            yield event.image_result(temp_file_path)
+
+            # 保存上一次使用的背景图信息（供 /jrys_last 使用）
+            if "_user_last_images" not in self.jrys_data:
+                self.jrys_data["_user_last_images"] = {}
+
+            user_last_images = self.jrys_data["_user_last_images"]
+            if user_id in user_last_images:
+                old_info = user_last_images[user_id]
+                old_path = old_info.get("path")
+                if (
+                    old_info.get("should_cleanup")
+                    and old_path
+                    and old_path != background_path
+                    and os.path.exists(old_path)
+                ):
+                    try:
+                        await aiofiles.os.remove(old_path)
+                    except Exception:
+                        pass
+
+            user_last_images[user_id] = {
+                "path": background_path,
+                "should_cleanup": background_should_cleanup,
+            }
+            await self.resources._save_jrys_data()
+            background_should_cleanup = False
+
+        except Exception as e:
+            logger.error(f"生成运势图片过程中出错: {e}")
+            yield event.plain_result("生成图片失败，请稍后再试～")
+
+        finally:
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except Exception:
+                    pass
+
+            if (
+                background_should_cleanup
+                and background_path
+                and os.path.exists(background_path)
+            ):
+                try:
+                    os.remove(background_path)
+                except Exception:
+                    pass
+
+    async def terminate(self):
+        """插件终止时的清理工作"""
+        if self.resources._precache_task and not self.resources._precache_task.done():
+            self.resources._precache_task.cancel()
+            try:
+                await self.resources._precache_task
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.warning(f"预缓存任务清理失败: {e}")
+
+        if self.resources._session:
+            await self.resources._session.close()
+            logger.info("HTTP会话已关闭")

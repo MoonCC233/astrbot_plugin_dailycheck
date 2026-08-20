@@ -1,20 +1,192 @@
 {
     "send_image": {
+        "description": "发送运势卡片图片；关闭则发送纯文本运势信息。",
         "type": "bool",
-        "title": "发送运势卡片图片",
-        "description": "开启后，今日运势以图片卡片形式发送；关闭则发送纯文本运势信息。",
+        "hint": "开启后今日运势以图片卡片形式发送；关闭则发送纯文本。默认开启。",
         "default": true
     },
     "use_avatar": {
+        "description": "在运势卡片上绘制用户头像。",
         "type": "bool",
-        "title": "使用用户头像",
-        "description": "在运势卡片上绘制用户头像（需平台支持获取头像，且依赖 requests 库）。",
+        "hint": "开启后会在卡片上绘制用户头像（需平台支持获取头像）。默认关闭。",
         "default": false
     },
     "auto_trigger": {
+        "description": "私聊关键词自动触发今日运势。",
         "type": "bool",
-        "title": "关键词自动触发今日运势",
-        "description": "在私聊中发送包含“今日运势”或“运势”的消息时自动触发运势卡片。",
+        "hint": "开启后，私聊中发送包含“今日运势”或“运势”的消息会自动触发运势卡片。默认关闭。",
         "default": false
+    },
+    "img_width": {
+        "description": "生成图片的宽度",
+        "type": "int",
+        "hint": "设置生成图片的宽度，单位为像素。默认值为 1080。",
+        "default": 1080
+    },
+    "img_height": {
+        "description": "生成图片的高度",
+        "type": "int",
+        "hint": "设置生成图片的高度，单位为像素。默认值为 1920。",
+        "default": 1920
+    },
+    "font_name": {
+        "description": "字体名称",
+        "type": "string",
+        "hint": "设置生成图片中使用的字体名称。默认值为 '千图马克手写体.ttf'(改字体需在插件 font 目录添加相应字体)。",
+        "default": "千图马克手写体.ttf"
+    },
+    "avatar_cache_expiration": {
+        "description": "头像缓存过期时间",
+        "type": "int",
+        "hint": "设置头像缓存的过期时间，单位为秒。默认值为 86400 秒（即 24 小时）。",
+        "default": 86400
+    },
+    "avater_size": {
+        "description": "头像尺寸",
+        "type": "list",
+        "item": {
+            "type": "int",
+            "description": "头像的尺寸，单位为像素。"
+        },
+        "hint": "设置头像的尺寸大小，默认为[150, 150]",
+        "default": [150, 150]
+    },
+    "avater_position": {
+        "description": "头像位置",
+        "type": "list",
+        "item": {
+            "type": "int",
+            "description": "头像的位置，单位为像素。"
+        },
+        "hint": "设置头像的尺寸大小，默认为[60, 1350]",
+        "default": [60, 1350]
+    },
+    "date_y_position": {
+        "description": "日期Y轴位置",
+        "type": "int",
+        "hint": "设置日期在图片上Y轴的位置，默认为1300",
+        "default": 1300
+    },
+    "summary_y_position": {
+        "description": "运势总结Y轴位置",
+        "type": "int",
+        "hint": "设置总结在图片上Y轴的位置，默认为1400",
+        "default": 1400
+    },
+    "lucky_star_y_position": {
+        "description": "幸运星Y轴位置",
+        "type": "int",
+        "hint": "设置幸运星在图片上Y轴的位置，默认为1500 例如(★★★★★★☆)",
+        "default": 1500
+    },
+    "sign_text_y_position": {
+        "description": "运势简短文本Y轴位置",
+        "type": "int",
+        "hint": "设置签名在图片上Y轴的位置，默认为1600 例如:(谦恭做事，必得人和，大事成就，一定兴隆)",
+        "default": 1600
+    },
+    "unsign_text_y_position": {
+        "description": "运势详细文本Y轴位置",
+        "type": "int",
+        "hint": "设置无签名在图片上Y轴的位置，默认为1700",
+        "default": 1700
+    },
+    "warning_text_y_position": {
+        "description": "注意事项文本Y轴位置",
+        "type": "int",
+        "hint": "设置注意事项在图片上Y轴的位置，默认为1850 例如:(此运势仅供娱乐参考，请勿过度解读。)",
+        "default": 1850
+    },
+    "jrys_keyword_enabled": {
+        "description": "启用关键字触发",
+        "type": "bool",
+        "hint": "启用后，用户可以通过发送特定的关键字（如 jrys、运势、今日运势）来触发插件功能。默认打开。",
+        "default": true
+    },
+    "pre_cache_background_images": {
+        "description": "加载/重载时预缓存背景图",
+        "type": "bool",
+        "hint": "启用后，插件在加载/重载时会后台预下载 backgroundFolder/*.txt 中的所有图片 URL 到本地缓存目录（需要 AstrBot >= 4.9.2）。",
+        "default": false
+    },
+    "pre_cache_concurrency": {
+        "description": "预缓存并发数",
+        "type": "int",
+        "hint": "预缓存背景图时的并发下载数量，建议 1-10，默认 3。",
+        "default": 3
+    },
+    "cleanup_background_downloads": {
+        "description": "清理非预缓存模式下的背景图下载",
+        "type": "bool",
+        "hint": "当未启用预缓存背景图时，插件每次运行按需下载的背景图在生成完成后将被删除，默认开启。如需将按需下载也持久化到本地缓存，请关闭该开关。",
+        "default": true
+    },
+    "holiday_rates_enabled": {
+        "description": "节假日运势高爆率",
+        "type": "bool",
+        "hint": "启用后，插件会根据中国大陆的节假日调整当天的运势（如春节期间增加财运和人缘）。默认开启。",
+        "default": true
+    },
+    "fixed_daily_fortune": {
+        "description": "每日固定运势",
+        "type": "bool",
+        "hint": "开启后，用户每天抽取的运势是固定的（重复发指令也相同）。关闭后每次触发都会随机生成全新运势。",
+        "default": true
+    },
+    "holidays": {
+        "description": "节假日日期列表",
+        "type": "list",
+        "hint": "配置需要触发高爆率的日期 (MM-DD 格式)。",
+        "default": ["01-01", "02-14", "05-01", "10-01", "12-25"]
+    },
+    "normal_rates": {
+        "description": "日常运势爆率权重",
+        "type": "object",
+        "hint": "设置平时的运势抽取概率权重。",
+        "items": {
+            "good": {
+                "description": "大吉/中吉 (>=84分) 权重",
+                "type": "int",
+                "default": 40,
+                "slider": {"min": 0, "max": 100, "step": 1}
+            },
+            "normal": {
+                "description": "平运 (56~70分) 权重",
+                "type": "int",
+                "default": 40,
+                "slider": {"min": 0, "max": 100, "step": 1}
+            },
+            "bad": {
+                "description": "凶运 (<42分) 权重",
+                "type": "int",
+                "default": 20,
+                "slider": {"min": 0, "max": 100, "step": 1}
+            }
+        }
+    },
+    "holiday_rates": {
+        "description": "节假日运势爆率权重",
+        "type": "object",
+        "hint": "设置节假日时的运势抽取概率权重。",
+        "items": {
+            "good": {
+                "description": "大吉 (>=84分) 权重",
+                "type": "int",
+                "default": 85,
+                "slider": {"min": 0, "max": 100, "step": 1}
+            },
+            "normal": {
+                "description": "中吉 (56~70分) 权重",
+                "type": "int",
+                "default": 15,
+                "slider": {"min": 0, "max": 100, "step": 1}
+            },
+            "bad": {
+                "description": "凶 (<42分) 权重",
+                "type": "int",
+                "default": 0,
+                "slider": {"min": 0, "max": 100, "step": 1}
+            }
+        }
     }
 }
